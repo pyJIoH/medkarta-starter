@@ -112,8 +112,13 @@ export function lineChart(root, { series, band = null, target = null, unit = '',
   let hi = Math.max(...vals);
   const bandLow = band && Number.isFinite(band.low) ? band.low : null;
   const bandHigh = band && Number.isFinite(band.high) ? band.high : null;
-  if (bandLow != null) lo = Math.min(lo, bandLow);
-  if (bandHigh != null) hi = Math.max(hi, bandHigh);
+  // Каждая граница нормы должна попасть на шкалу — иначе при односторонней норме («до 100»),
+  // когда все замеры выше неё, зона окажется за пределами графика.
+  for (const edge of [bandLow, bandHigh]) {
+    if (edge == null) continue;
+    lo = Math.min(lo, edge);
+    hi = Math.max(hi, edge);
+  }
   if (target) {
     lo = Math.min(lo, target.value);
     hi = Math.max(hi, target.value);

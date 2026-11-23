@@ -1,7 +1,7 @@
 // Обзор: кто я, как дела сейчас, что требует внимания, что дальше.
 
 import { $, esc, icon, fmtDate, relTime, age, count, fmtNum, num } from '../util.js';
-import { store, sortedCases, flaggedTests, upcomingPlan } from '../store.js';
+import { store, sortedCases, flaggedTests, upcomingPlan, who } from '../store.js';
 import {
   statusPill, valueHtml, metricTile, recordRow, caseRow, planRow, systemsBlock, empty,
   metricLink, recordLink, bindPlan,
@@ -54,7 +54,7 @@ function header() {
 function stateCard() {
   const summary = store.data.records.find((r) => r.type === 'summary');
   if (!summary) {
-    return `<section class="card span-2"><div class="card-head"><h2>Состояние</h2></div>${empty('Сводки пока нет', 'Попроси ассистента: <code>сделай сводку</code>.')}</section>`;
+    return `<section class="card span-2"><div class="card-head"><h2>Состояние</h2></div>${empty('Сводки пока нет', `Попроси ${esc(who('gen'))}: <code>сделай сводку</code>.`)}</section>`;
   }
   return `
     <section class="card span-2">
@@ -89,7 +89,7 @@ function casesCard() {
           ? `<div class="rows">${open.map(caseRow).join('')}</div>`
           : closed
             ? empty('Активных кейсов нет', 'Всё, за чем наблюдали, закрыто.')
-            : empty('Кейсов пока нет', 'Расскажи ассистенту, что беспокоит, — он заведёт кейс.')
+            : empty('Кейсов пока нет', `Расскажи ${esc(who('dat'))}, что беспокоит, — он заведёт кейс.`)
       }
       ${closed ? `<a class="card-link" href="#/cases?s=closed">Закрытых — ${closed} ${icon('arrow-right', 14)}</a>` : ''}
     </section>`;
@@ -147,7 +147,7 @@ export function render({ view }) {
     }
     ${
       inbox
-        ? `<a class="banner" href="#/inbox">${icon('inbox', 18)}<span>Во входящих ${count(inbox, ['файл', 'файла', 'файлов'])} — скажи ассистенту: <code>разбери inbox</code></span></a>`
+        ? `<a class="banner" href="#/inbox">${icon('inbox', 18)}<span>Во входящих ${count(inbox, ['файл', 'файла', 'файлов'])} — скажи ${esc(who('dat'))}: <code>разбери inbox</code></span></a>`
         : ''
     }
     <div class="dash">

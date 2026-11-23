@@ -5,14 +5,15 @@ import http from 'node:http';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
 import { Marked } from 'marked';
 import YAML from 'yaml';
+import { APP_ROOT, resolveDataRoot } from './root.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// ROOT — данные карты (их можно вынести: --root или MEDKARTA_ROOT), APP_ROOT — сам сайт.
+const ROOT = resolveDataRoot();
 const DIR = {
-  public: path.join(ROOT, 'site', 'public'),
+  public: path.join(APP_ROOT, 'site', 'public'),
   records: path.join(ROOT, 'records'),
   cases: path.join(ROOT, 'cases'),
   inbox: path.join(ROOT, 'inbox'),
@@ -23,6 +24,7 @@ const FILES = {
   pinned: path.join(ROOT, 'metrics', 'pinned.json'),
   episodes: path.join(ROOT, 'metrics', 'episodes.csv'),
   descriptions: path.join(ROOT, 'metrics', 'descriptions.yaml'),
+  settings: path.join(ROOT, 'settings.yaml'),
 };
 const METRIC_FILES = ['labs.csv', 'vitals.csv'].map((f) => path.join(ROOT, 'metrics', f));
 const EPISODE_COLUMNS = ['date', 'case', 'duration', 'severity', 'before', 'helped', 'note'];
@@ -495,6 +497,21 @@ async function getDescriptions() {
   return out;
 }
 
+/** Настройки сайта из settings.yaml: имя ассистента в подписях и короткие названия лабораторий. */
+async function getSettings() {
+  let raw;
+  try {
+    raw = YAML.parse(await fsp.readFile(FILES.settings, 'utf8'));
+  } catch {
+    raw = null;
+  }
+  const labs = {};
+  if (raw?.labs && typeof raw.labs === 'object' && !Array.isArray(raw.labs)) {
+    for (const [name, short] of Object.entries(raw.labs)) if (str(short).trim()) labs[name] = str(short).trim().slice(0, 40);
+  }
+  return { assistant: str(raw?.assistant).trim().slice(0, 40), labs };
+}
+
 // ---------- профиль, показатели, входящие ----------
 
 async function getProfile() {
@@ -530,7 +547,7 @@ async function listInbox() {
 
 /** Всё, что нужно сайту для любой страницы, одним запросом. */
 async function getState() {
-  const [records, cases, plan, inbox, profile, metrics, episodes, pinned, descriptions] = await Promise.all([
+  const [records, cases, plan, inbox, profile, metrics, episodes, pinned, descriptions, settings] = await Promise.all([
     listRecords(),
     listCases(),
     getPlan(),
@@ -540,9 +557,10 @@ async function getState() {
     readCsv(FILES.episodes),
     getPinned(),
     getDescriptions(),
+    getSettings(),
   ]);
   return {
-    today: localStamp().date, records, cases, plan, inbox, profile: profile.meta, metrics, episodes, pinned, descriptions,
+    today: localStamp().date, records, cases, plan, inbox, profile: profile.meta, metrics, episodes, pinned, descriptions, settings,
   };
 }
 
@@ -730,4 +748,5 @@ server.on('error', (err) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`Медкарта: http://localhost:${PORT}`);
+  if (ROOT !== APP_ROOT) console.log(`Данные: ${ROOT}`);
 });

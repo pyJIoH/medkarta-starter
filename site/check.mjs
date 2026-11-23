@@ -5,10 +5,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
+import { APP_ROOT, resolveDataRoot } from './root.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Данные карты: по умолчанию рядом с сайтом; вынесенные — через --root или MEDKARTA_ROOT.
+const ROOT = resolveDataRoot();
 const errors = [];
 const warnings = [];
 const err = (where, text) => errors.push(`${where}: ${text}`);
@@ -365,9 +366,29 @@ let profileNote = '';
   }
 }
 
+// ---------- настройки сайта ----------
+
+{
+  const text = read(path.join(ROOT, 'settings.yaml'));
+  if (text != null) {
+    let s;
+    try {
+      s = YAML.parse(text);
+    } catch (e) {
+      err('settings.yaml', `не читается как YAML: ${e.message.split('\n')[0]}`);
+    }
+    if (s != null && (typeof s !== 'object' || Array.isArray(s))) err('settings.yaml', 'ожидаются поля assistant и labs');
+    else if (s) {
+      if (s.assistant != null && typeof s.assistant !== 'string') err('settings.yaml', 'assistant — строка: как сайт называет ассистента');
+      if (s.labs != null && (typeof s.labs !== 'object' || Array.isArray(s.labs))) err('settings.yaml', 'labs — пары «название лаборатории: короткое название»');
+    }
+  }
+}
+
 // ---------- итог ----------
 
 console.log('Проверка медкарты');
+if (ROOT !== APP_ROOT) console.log(`  данные: ${ROOT}`);
 console.log(`  записей ${records.size} · кейсов ${cases.size} · показателей ${tests.size} (${metricRows} значений) · пунктов плана ${planCount}`);
 if (profileNote) console.log(`  ${profileNote}`);
 if (errors.length) {

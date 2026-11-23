@@ -2,7 +2,7 @@
 // с эпизодами, связанными показателями и записями. Кейс можно закрыть и открыть снова.
 
 import { $, esc, enc, icon, statusIcon, priorityIcon, fmtDate, relTime, count, plural, dateParts, STATUS, PRIORITY } from '../util.js';
-import { store, api, post, refresh, sortedCases, episodesOf, recordById, goalState } from '../store.js';
+import { store, api, post, refresh, sortedCases, episodesOf, recordById, goalState, who } from '../store.js';
 import {
   statusPill, valueHtml, typeBadge, empty, metricLink, recordLink, caseLink, kindLabel, internalizeLinks, toast,
   goalLine, goalBlock, priorityTag,
@@ -67,13 +67,13 @@ export function renderList({ view, query }) {
         <a class="seg-btn${tab === 'open' ? ' on' : ''}" href="#/cases">Активные <span>${open.length}</span></a>
         <a class="seg-btn${tab === 'closed' ? ' on' : ''}" href="#/cases?s=closed">Закрытые <span>${closed.length}</span></a>
       </div>
-      <span class="toolbar-hint">Новый симптом? Нажми «Заметка» вверху или расскажи ассистенту — он заведёт кейс.</span>
+      <span class="toolbar-hint">Новый симптом? Нажми «Заметка» вверху или расскажи ${esc(who('dat'))} — он заведёт кейс.</span>
     </div>
     ${
       list.length
         ? `<div class="case-cards">${list.map(caseCard).join('')}</div>`
         : tab === 'open'
-          ? empty('Активных кейсов нет', closed.length ? 'Всё, за чем наблюдали, закрыто.' : 'Расскажи ассистенту, что беспокоит, — он заведёт кейс.')
+          ? empty('Активных кейсов нет', closed.length ? 'Всё, за чем наблюдали, закрыто.' : `Расскажи ${esc(who('dat'))}, что беспокоит, — он заведёт кейс.`)
           : empty('Закрытых кейсов пока нет')
     }`;
 }

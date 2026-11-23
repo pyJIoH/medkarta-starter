@@ -15,6 +15,15 @@ export async function api(url, opts = {}) {
   return data;
 }
 
+/** Как сайт называет ассистента: имя из settings.yaml (не склоняется) или слово «ассистент» в нужном падеже. */
+const WHO = { nom: 'ассистент', gen: 'ассистента', dat: 'ассистенту' };
+export function who(form = 'nom', capital = false) {
+  const name = store.data?.settings?.assistant;
+  if (name) return name;
+  const word = WHO[form] ?? WHO.nom;
+  return capital ? word[0].toUpperCase() + word.slice(1) : word;
+}
+
 export const post = (url, body) =>
   api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 

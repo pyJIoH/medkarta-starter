@@ -3,7 +3,7 @@
 // боковую панель с графиком, зоной нормы и полной историей.
 
 import { $, $$, esc, enc, icon, fmtDate, relTime, num, count, fmtNum, FLAGS } from '../util.js';
-import { store, post, rowFlag, refText, categories, isPinned, casesForTest, goalFor } from '../store.js';
+import { store, post, rowFlag, refText, categories, isPinned, casesForTest, goalFor, who } from '../store.js';
 import { valueHtml, flagBadge, empty, deltaText, recordLink, caseLink, toast, goalLine, statusPill } from '../components.js';
 import { sparkline, lineChart, hideTip } from '../charts.js';
 
@@ -84,8 +84,8 @@ function listSection(cat, tests) {
 
 // ---------- вид «по датам» ----------
 
-// Короткое имя лаборатории для шапки таблицы — первое слово: «Альфа-Лаб (филиал)» → «Альфа-Лаб».
-const labShort = (lab) => String(lab ?? '').trim().split(/[\s(,]/)[0] || lab;
+// Короткое имя лаборатории для шапки таблицы: из settings.yaml, иначе первое слово — «Альфа-Лаб (филиал)» → «Альфа-Лаб».
+const labShort = (lab) => store.data?.settings?.labs?.[lab] ?? (String(lab ?? '').trim().split(/[\s(,]/)[0] || lab);
 
 function matrixSection(cat, tests) {
   tests.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
@@ -167,7 +167,7 @@ function bandFor(test) {
 function aboutBlocks(test) {
   const d = store.data.descriptions?.[test.name];
   if (!d || (!d.about && !d.assessment)) {
-    return '<p class="chart-note">Описания пока нет — ассистент добавит его при следующем разборе.</p>';
+    return `<p class="chart-note">Описания пока нет — ${esc(who('nom'))} добавит его при следующем разборе.</p>`;
   }
   const stale = d.as_of && test.last.date > d.as_of;
   return `
@@ -175,11 +175,11 @@ function aboutBlocks(test) {
     ${
       d.assessment
         ? `<div class="assess${d.status ? ` assess-${d.status}` : ''}">
-            <div class="assess-head"><h3>Оценка ассистента</h3>${statusPill(d.status)}</div>
+            <div class="assess-head"><h3>Оценка ${esc(who('gen'))}</h3>${statusPill(d.status)}</div>
             <p>${esc(d.assessment)}</p>
             <div class="assess-foot">${
               stale
-                ? `${icon('clock', 13)}<span>Оценка сделана по данным на ${esc(fmtDate(d.as_of, 'short'))} — с тех пор есть новый замер. Попроси ассистента обновить.</span>`
+                ? `${icon('clock', 13)}<span>Оценка сделана по данным на ${esc(fmtDate(d.as_of, 'short'))} — с тех пор есть новый замер. Попроси ${esc(who('gen'))} обновить.</span>`
                 : `<span>${d.as_of ? `По данным на ${esc(fmtDate(d.as_of, 'short'))} · ` : ''}толкование, не диагноз</span>`
             }</div>
           </div>`

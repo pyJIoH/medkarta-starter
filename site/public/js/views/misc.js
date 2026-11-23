@@ -1,7 +1,7 @@
 // План, профиль, входящие.
 
 import { $, esc, icon, fmtDate, age, count, fmtNum, num, toDate, endOfPeriod } from '../util.js';
-import { store, api } from '../store.js';
+import { store, api, who } from '../store.js';
 import { planRow, empty, bindPlan, internalizeLinks, metricLink } from '../components.js';
 
 // ---------- план ----------
@@ -27,12 +27,12 @@ export function renderPlan({ view }) {
       </div>
     </header>
     <div id="plan-page">
-      ${open.length || done.length ? '' : empty('План пуст', 'Скажи ассистенту, что запланировано, — он добавит.')}
+      ${open.length || done.length ? '' : empty('План пуст', `Скажи ${esc(who('dat'))}, что запланировано, — он добавит.`)}
       ${section('Ближайший год', soon)}
       ${section('Позже', later)}
       ${section('Сделано', done)}
     </div>
-    <p class="page-note">Новый пункт — расскажи ассистенту («в марте иду к стоматологу») или добавь в <code>plan.yaml</code>.</p>`;
+    <p class="page-note">Новый пункт — расскажи ${esc(who('dat'))} («в марте иду к стоматологу») или добавь в <code>plan.yaml</code>.</p>`;
   bindPlan($('#plan-page', view), () => renderPlan({ view }));
 }
 
@@ -63,7 +63,7 @@ export async function renderProfile({ view }) {
   const p = await api('/api/profile');
   view.innerHTML = p.html
     ? `${profileStats(p.meta)}<article class="doc"><div class="prose">${p.html}</div></article>`
-    : `<header class="page-head"><h1>Обо мне</h1></header>${empty('Профиль не заполнен', 'Расскажи ассистенту о себе — он заполнит <code>profile.md</code>.')}`;
+    : `<header class="page-head"><h1>Обо мне</h1></header>${empty('Профиль не заполнен', `Расскажи ${esc(who('dat'))} о себе — он заполнит <code>profile.md</code>.`)}`;
   internalizeLinks(view);
 }
 
@@ -83,7 +83,7 @@ export function renderInbox({ view }) {
     <header class="page-head">
       <div>
         <h1>Входящие <span class="muted">${items.length}</span></h1>
-        <p class="sub">Сюда падает всё новое: файлы с сайта, заметки или то, что лежит в папке <code>inbox/</code>. Чтобы разобрать, скажи ассистенту: <code>разбери inbox</code>.</p>
+        <p class="sub">Сюда падает всё новое: файлы с сайта, заметки или то, что лежит в папке <code>inbox/</code>. Чтобы разобрать, скажи ${esc(who('dat'))}: <code>разбери inbox</code>.</p>
       </div>
     </header>
     <button class="dropzone" type="button" id="inbox-drop">

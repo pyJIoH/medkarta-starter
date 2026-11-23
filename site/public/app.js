@@ -2,7 +2,7 @@
 // Страницы лежат в js/views/, данные и модель — в js/store.js. Внешних запросов нет.
 
 import { $, $$, esc, icon, statusIcon, fmtDate, count, TYPES } from './js/util.js';
-import { store, refresh, post, sortedCases, isNew } from './js/store.js';
+import { store, refresh, post, sortedCases, isNew, who } from './js/store.js';
 import { toast, empty, metricLink, recordLink, caseLink } from './js/components.js';
 import { hideTip } from './js/charts.js';
 import * as home from './js/views/home.js';
@@ -84,6 +84,8 @@ async function route({ full = false } = {}) {
     return;
   }
   if (token !== navToken) return; // пока грузились, пользователь ушёл дальше
+  // Имя ассистента в статичной разметке (диалог заметки) — из настроек карты.
+  for (const el of document.querySelectorAll('[data-who]')) el.textContent = who(el.dataset.who, 'capital' in el.dataset);
 
   let found = null;
   for (const r of ROUTES) {
@@ -263,7 +265,7 @@ async function upload(files) {
       break;
     }
   }
-  if (ok) toast(`Во входящих: +${count(ok, ['файл', 'файла', 'файлов'])}. Скажи ассистенту «разбери inbox».`);
+  if (ok) toast(`Во входящих: +${count(ok, ['файл', 'файла', 'файлов'])}. Скажи ${who('dat')} «разбери inbox».`);
   route({ full: true });
 }
 
@@ -327,7 +329,7 @@ noteForm.addEventListener('submit', async (e) => {
       text: noteForm.text.value,
     });
     noteDialog.close();
-    toast('Заметка во входящих. Скажи ассистенту «разбери inbox».');
+    toast(`Заметка во входящих. Скажи ${who('dat')} «разбери inbox».`);
     route({ full: true });
   } catch (err) {
     toast(`Не сохранилось: ${err.message}`, true);

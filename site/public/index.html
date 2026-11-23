@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Медкарта</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a78d6'/%3E%3Cpath d='M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z' fill='white'/%3E%3C/svg%3E">
+  <script src="/js/theme-init.js"></script>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#view">К содержимому</a>
+
+  <div class="app">
+    <aside class="sidebar">
+      <a class="brand" href="#/">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>Медкарта</span>
+      </a>
+      <nav id="nav" class="nav" aria-label="Разделы"></nav>
+      <div class="sidebar-foot">
+        <button id="theme-btn" class="foot-btn" type="button" data-icon="theme"><span id="theme-label">Тема</span></button>
+        <div class="foot-note" data-icon="lock" data-icon-size="14"><span>Только на этом компьютере</span></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="search-box" role="search" data-icon="search">
+          <input id="search" type="search" placeholder="Поиск: показатель, кейс, запись…" autocomplete="off" aria-label="Поиск по медкарте">
+          <kbd>/</kbd>
+          <div id="search-pop" class="search-pop" hidden></div>
+        </div>
+        <div class="topbar-actions">
+          <button id="btn-note" class="btn" type="button" data-icon="plus">Заметка</button>
+          <button id="btn-upload" class="btn btn-primary" type="button" data-icon="upload">Загрузить</button>
+          <input id="file-input" type="file" multiple hidden>
+        </div>
+      </header>
+      <main id="view" class="view" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <!-- Боковая панель показателя -->
+  <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+  <aside id="drawer" class="drawer" role="dialog" aria-labelledby="drawer-title" hidden></aside>
+
+  <div id="drop-overlay" class="drop-overlay" hidden>
+    <div class="drop-overlay-inner">Отпусти — файлы попадут во «Входящие»</div>
+  </div>
+
+  <!-- Быстрая заметка → inbox -->
+  <dialog id="note-dialog" class="dialog">
+    <form id="note-form" method="dialog">
+      <h2>Новая заметка</h2>
+      <p class="dialog-sub">Попадёт во «Входящие». Ассистент разберёт: заведёт кейс, допишет эпизод или замер.</p>
+      <div class="segmented" role="radiogroup" aria-label="Тип заметки">
+        <label><input type="radio" name="kind" value="symptom" checked><span>Симптом</span></label>
+        <label><input type="radio" name="kind" value="note"><span>Заметка или замер</span></label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Дата</span>
+          <input type="date" name="date" required>
+        </label>
+        <label class="field" id="severity-field">
+          <span>Сила: <b id="severity-value">5</b> / 10</span>
+          <input type="range" name="severity" min="0" max="10" value="5">
+        </label>
+      </div>
+      <label class="field">
+        <span>Что происходит</span>
+        <textarea name="text" rows="6" required placeholder="Где, как, сколько длится, что помогает… Или замер: давление 118/78 утром, вес 81.5"></textarea>
+      </label>
+      <div class="dialog-actions">
+        <button class="btn" type="button" data-cancel>Отмена</button>
+        <button class="btn btn-primary" type="submit">Сохранить во входящие</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Закрыть кейс -->
+  <dialog id="close-dialog" class="dialog">
+    <form id="close-form" method="dialog">
+      <h2>Закрыть кейс</h2>
+      <p class="dialog-sub" id="close-title"></p>
+      <label class="field">
+        <span>Когда прошло</span>
+        <input type="date" name="date" required>
+      </label>
+      <label class="field">
+        <span>Чем закончилось</span>
+        <textarea name="note" rows="4" placeholder="Например: прошло само; помогло лечение; показатель в норме в двух анализах подряд"></textarea>
+      </label>
+      <p class="dialog-hint">Кейс останется в «Закрытых» со всей историей. Если вернётся — его можно открыть снова.</p>
+      <div class="dialog-actions">
+        <button class="btn" type="button" data-cancel>Отмена</button>
+        <button class="btn btn-primary" type="submit">Закрыть кейс</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Записать эпизод -->
+  <dialog id="episode-dialog" class="dialog">
+    <form id="episode-form" method="dialog">
+      <h2>Записать эпизод</h2>
+      <p class="dialog-sub" id="episode-title"></p>
+      <div class="field-row">
+        <label class="field">
+          <span>Дата</span>
+          <input type="date" name="date" required>
+        </label>
+        <label class="field">
+          <span>Сколько длилось</span>
+          <input type="text" name="duration" placeholder="20 минут, пару часов…" autocomplete="off">
+        </label>
+      </div>
+      <label class="field">
+        <span>Сила: <b id="episode-severity">5</b> / 10</span>
+        <input type="range" name="severity" min="0" max="10" value="5">
+      </label>
+      <label class="field">
+        <span>Что было перед этим</span>
+        <input type="text" name="before" placeholder="Нагрузка, еда, сон, долгое сидение…" autocomplete="off">
+      </label>
+      <label class="field">
+        <span>Что помогло</span>
+        <input type="text" name="helped" placeholder="Тёплая ванна, отдых, лекарство…" autocomplete="off">
+      </label>
+      <label class="field">
+        <span>Заметка</span>
+        <textarea name="note" rows="3" placeholder="Всё, что кажется важным"></textarea>
+      </label>
+      <div class="dialog-actions">
+        <button class="btn" type="button" data-cancel>Отмена</button>
+        <button class="btn btn-primary" type="submit">Записать</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

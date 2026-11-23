@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node site/server.mjs",
     "dev": "node --watch site/server.mjs",
-    "check": "node site/check.mjs"
+    "check": "node site/check.mjs",
+    "genome": "node site/genome.mjs"
   },
   "engines": {
     "node": ">=20"

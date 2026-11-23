@@ -194,7 +194,11 @@ function renderDrawer(test) {
   const cases = casesForTest(test.name);
   const goal = goalFor(test.name);
   const aliases = [...new Set(test.list.map((r) => r.test_original).filter(Boolean))];
-  const hasChart = test.points.length >= 2;
+  // График строим от двух числовых замеров. Если замер один, но в бланке есть норма, —
+  // тоже строим: точка на фоне зоны нормы, чтобы норма была видна в любой панели, где она известна.
+  const single = test.points.length === 1;
+  const hasChart = test.points.length >= 2 || (single && Boolean(band));
+  const skipped = test.list.length - test.points.length; // нечисловые значения на график не попадают
   // Давление показываем парой «118/84»: систолическое и диастолическое с одного приёма.
   const [sysTest, diaTest] = BP.map((name) => store.tests.get(name));
   const pair = (date) => {
@@ -230,11 +234,11 @@ function renderDrawer(test) {
       ${
         hasChart
           ? `<figure class="chart-card">
-              <figcaption>${isBp ? `Давление: приёмы и дом${test.unit ? `, ${esc(test.unit)}` : ''}` : `Все замеры${test.unit ? `, ${esc(test.unit)}` : ''}`}</figcaption>
+              <figcaption>${isBp ? 'Давление: приёмы и дом' : single ? 'Замер и зона нормы' : skipped ? 'Числовые замеры' : 'Все замеры'}${test.unit ? `, ${esc(test.unit)}` : ''}</figcaption>
               <div id="drawer-chart"></div>
               ${
                 band
-                  ? `<p class="chart-note">Зона нормы ${esc(refText(band.row))} — из бланка: ${esc(band.row.lab)}, ${esc(fmtDate(band.row.date, 'short'))}. У разных лабораторий нормы могут отличаться.</p>`
+                  ? `<p class="chart-note">Зона нормы ${esc(refText(band.row))} — из бланка: ${esc(band.row.lab)}, ${esc(fmtDate(band.row.date, 'short'))}. У разных лабораторий нормы могут отличаться.${single ? (skipped ? ' На графике только числовые значения, остальные — в истории ниже.' : ' Замер один — динамика появится после следующего.') : ''}</p>`
                   : isBp
                     ? ''
                     : '<p class="chart-note">Числовой нормы в бланках нет — показана только динамика.</p>'
@@ -282,7 +286,7 @@ function renderDrawer(test) {
       : [{ name: test.name, color: 'var(--series-1)', points: test.points }];
     lineChart($('#drawer-chart'), {
       series,
-      band,
+      band: band ? { ...band, label: refText(band.row) } : null,
       target: goal ? { value: goal.target, label: `цель ${fmtNum(goal.target)}` } : null,
       unit: test.unit,
       title: `График: ${test.name}, ${count(test.points.length, ['замер', 'замера', 'замеров'])}`,

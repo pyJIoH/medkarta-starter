@@ -39,6 +39,18 @@ export const recordLink = (id) => `#/r/${enc(id)}`;
 export const caseLink = (id) => `#/case/${enc(id)}`;
 export const genomeLink = (group) => `#/genome?g=${enc(group)}`;
 
+/** Строки блока «В геноме»: ген и короткий итог. У чувствительных тем итог виден только после перехода. */
+export const genomeRows = (groups) =>
+  groups
+    .map(
+      (g) => `
+      <a class="mini-gene" href="${genomeLink(g.group)}">
+        <div class="mini-gene-title">${esc(g.title)}</div>
+        <div class="mini-gene-sub">${g.sensitive ? 'чувствительная тема — результат на странице «Геном»' : esc(g.note?.result ?? '')}</div>
+      </a>`,
+    )
+    .join('');
+
 /** Изменение к прошлому замеру: «−17 к 17 окт 2025». Без оценки «хорошо/плохо» — она зависит от показателя. */
 export function deltaText(test) {
   if (test.delta == null) return '';

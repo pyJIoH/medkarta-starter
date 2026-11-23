@@ -3,8 +3,8 @@
 // боковую панель с графиком, зоной нормы и полной историей.
 
 import { $, $$, esc, enc, icon, fmtDate, relTime, num, count, fmtNum, FLAGS } from '../util.js';
-import { store, post, rowFlag, refText, categories, isPinned, casesForTest, goalFor, who } from '../store.js';
-import { valueHtml, flagBadge, empty, deltaText, recordLink, caseLink, toast, goalLine, statusPill } from '../components.js';
+import { store, post, rowFlag, refText, categories, isPinned, casesForTest, goalFor, who, genomeForTest } from '../store.js';
+import { valueHtml, flagBadge, empty, deltaText, recordLink, caseLink, toast, goalLine, statusPill, genomeRows } from '../components.js';
 import { sparkline, lineChart, hideTip } from '../charts.js';
 
 const state = { f: 'all', v: 'list', q: '', m: '' };
@@ -193,6 +193,7 @@ function renderDrawer(test) {
   const band = isBp ? null : bandFor(test);
   const cases = casesForTest(test.name);
   const goal = goalFor(test.name);
+  const genes = genomeForTest(test.name); // что в геноме объясняет этот показатель
   const aliases = [...new Set(test.list.map((r) => r.test_original).filter(Boolean))];
   // График строим от двух числовых замеров. Если замер один, но в бланке есть норма, —
   // тоже строим: точка на фоне зоны нормы, чтобы норма была видна в любой панели, где она известна.
@@ -254,6 +255,8 @@ function renderDrawer(test) {
               .join('')}</div></div>`
           : ''
       }
+
+      ${genes.length ? `<div class="drawer-block"><h3>В геноме <span class="muted">${genes.length}</span></h3><div class="rows gene-rows">${genomeRows(genes)}</div></div>` : ''}
 
       <div class="drawer-block">
         <h3>История <span class="muted">${count(test.list.length, ['замер', 'замера', 'замеров'])}</span></h3>

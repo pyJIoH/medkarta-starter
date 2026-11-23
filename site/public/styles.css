@@ -605,6 +605,13 @@ table.data th small, table.data td small { display: block; font-size: 11px; font
 .ev-dots { display: inline-flex; gap: 3px; }
 .ev-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--surface-3); }
 .ev-dots i.on { background: var(--ink-3); }
+/* Блок «В геноме» в панели показателя и на странице кейса. */
+.mini-gene { display: block; padding: 9px 0; color: var(--ink); }
+.mini-gene:hover { text-decoration: none; }
+.mini-gene:hover .mini-gene-title { color: var(--accent-ink); }
+.mini-gene-title { font-size: 13.5px; font-weight: 550; }
+.mini-gene-sub { font-size: 13px; color: var(--ink-2); }
+.gene-rows { border: 1px solid var(--border); border-radius: 10px; padding: 2px 14px; background: var(--surface); }
 .g-hero { font-size: 23px; font-weight: 650; letter-spacing: -0.015em; line-height: 1.25; }
 .g-text { font-size: 14.5px; line-height: 1.5; color: var(--ink-2); }
 .drawer-block h3.g-h3 { margin-top: 14px; }

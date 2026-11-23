@@ -2,10 +2,10 @@
 // с эпизодами, связанными показателями и записями. Кейс можно закрыть и открыть снова.
 
 import { $, esc, enc, icon, statusIcon, priorityIcon, fmtDate, relTime, count, plural, dateParts, STATUS, PRIORITY } from '../util.js';
-import { store, api, post, refresh, sortedCases, episodesOf, recordById, goalState, who } from '../store.js';
+import { store, api, post, refresh, sortedCases, episodesOf, recordById, goalState, who, genomeForCase } from '../store.js';
 import {
   statusPill, valueHtml, typeBadge, empty, metricLink, recordLink, caseLink, kindLabel, internalizeLinks, toast,
-  goalLine, goalBlock, priorityTag,
+  goalLine, goalBlock, priorityTag, genomeRows,
 } from '../components.js';
 import { sparkline, monthColumns } from '../charts.js';
 
@@ -142,6 +142,15 @@ function sideMetrics(tests) {
     </section>`;
 }
 
+function sideGenome(groups) {
+  if (!groups.length) return '';
+  return `
+    <section class="card">
+      <div class="card-head"><h2>В геноме</h2></div>
+      <div class="rows">${genomeRows(groups)}</div>
+    </section>`;
+}
+
 function sideRecords(records) {
   if (!records.length) return '';
   return `
@@ -221,6 +230,7 @@ export async function renderCase({ view, params }) {
       </div>
       <aside class="split-side">
         ${sideMetrics(tests)}
+        ${sideGenome(genomeForCase(c.id))}
         ${sideRecords(records)}
       </aside>
     </div>`;

@@ -675,7 +675,7 @@ async function handle(req, res) {
 
   if (req.method === 'POST') {
     // Кастомный заголовок + проверка Origin: чужая страница не сможет ничего записать.
-    if (!originAllowed(req) || req.headers['x-health'] !== '1') throw new HttpError(403, 'Запрещено');
+    if (!originAllowed(req) || req.headers['x-medkarta'] !== '1') throw new HttpError(403, 'Запрещено');
     if (pathname === '/api/inbox') return json(res, 201, await saveUpload(req, url.searchParams.get('name')));
     const route = POST_ROUTES[pathname];
     if (!route) throw new HttpError(404, 'Не найдено');

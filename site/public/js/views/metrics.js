@@ -230,7 +230,7 @@ function renderDrawer(test) {
       ${
         hasChart
           ? `<figure class="chart-card">
-              <figcaption>${isBp ? `Давление на приёмах${test.unit ? `, ${esc(test.unit)}` : ''}` : `Все замеры${test.unit ? `, ${esc(test.unit)}` : ''}`}</figcaption>
+              <figcaption>${isBp ? `Давление: приёмы и дом${test.unit ? `, ${esc(test.unit)}` : ''}` : `Все замеры${test.unit ? `, ${esc(test.unit)}` : ''}`}</figcaption>
               <div id="drawer-chart"></div>
               ${
                 band

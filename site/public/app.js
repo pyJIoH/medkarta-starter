@@ -253,7 +253,7 @@ async function upload(files) {
     try {
       const res = await fetch(`/api/inbox?name=${encodeURIComponent(f.name)}`, {
         method: 'POST',
-        headers: { 'X-Health': '1', 'Content-Type': 'application/octet-stream' },
+        headers: { 'X-Medkarta': '1', 'Content-Type': 'application/octet-stream' },
         body: f,
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
@@ -348,8 +348,8 @@ function applyTheme(theme) {
   if (theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
   try {
-    if (theme === 'system') localStorage.removeItem('health.theme');
-    else localStorage.setItem('health.theme', theme);
+    if (theme === 'system') localStorage.removeItem('medkarta.theme');
+    else localStorage.setItem('medkarta.theme', theme);
   } catch {
     // приватный режим — тема просто не запомнится
   }

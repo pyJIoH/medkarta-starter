@@ -9,7 +9,7 @@ export const store = {
 };
 
 export async function api(url, opts = {}) {
-  const res = await fetch(url, { ...opts, headers: { 'X-Health': '1', ...(opts.headers ?? {}) } });
+  const res = await fetch(url, { ...opts, headers: { 'X-Medkarta': '1', ...(opts.headers ?? {}) } });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || res.statusText);
   return data;
@@ -171,7 +171,7 @@ export function upcomingPlan() {
 
 // ---------- «новое»: какие записи уже открывались в этом браузере ----------
 
-const SEEN_KEY = 'health.seen';
+const SEEN_KEY = 'medkarta.seen';
 let seen = new Set();
 
 function initSeen() {

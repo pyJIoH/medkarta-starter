@@ -576,6 +576,44 @@ table.data th small, table.data td small { display: block; font-size: 11px; font
 .drawer-block h3 { font-size: 14.5px; font-weight: 650; margin-bottom: 8px; }
 .drawer-block h3 span { font-size: 12.5px; margin-left: 4px; }
 
+/* ---------- геном ---------- */
+
+.g-summary, .g-drugs, .g-clinvar { margin-bottom: 16px; }
+.g-summary .lead, .g-clinvar .lead { max-width: 900px; }
+.g-facts { display: flex; flex-wrap: wrap; gap: 4px 22px; margin-top: 10px; font-size: 13px; color: var(--ink-3); }
+.g-facts b { color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.g-drugs .card-head .icon, .g-clinvar .card-head .icon { color: var(--ink-3); }
+.g-drug { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 4px 20px; padding: 11px 0; color: var(--ink); }
+.g-drug:hover { text-decoration: none; }
+.g-drug:hover .g-drug-gene b { color: var(--accent-ink); }
+.g-drug-gene b { display: block; font-size: 14.5px; font-weight: 600; }
+.g-drug-gene span { font-size: 13.5px; color: var(--ink-2); }
+.g-drug-text { font-size: 13.5px; color: var(--ink-2); }
+.g-drug-list { color: var(--ink-3); font-size: 12.5px; margin-bottom: 2px; }
+.g-table { table-layout: fixed; min-width: 820px; }
+.g-table th:nth-child(1) { width: 31%; }
+.g-table th:nth-child(2) { width: 31%; }
+.g-table th:nth-child(3) { width: 15%; }
+.g-table th:nth-child(4) { width: 11%; }
+.g-lock { vertical-align: -1px; color: var(--muted); }
+.g-hidden { margin: 18px 0 16px; }
+.g-hidden p { font-size: 13.5px; color: var(--ink-2); }
+.link-btn { padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--accent-ink); cursor: pointer; }
+.link-btn:hover { text-decoration: underline; }
+/* Надёжность данных: три точки, закрашено 3 / 2 / 1, и слово рядом. */
+.ev { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.ev-dots { display: inline-flex; gap: 3px; }
+.ev-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--surface-3); }
+.ev-dots i.on { background: var(--ink-3); }
+.g-hero { font-size: 23px; font-weight: 650; letter-spacing: -0.015em; line-height: 1.25; }
+.g-text { font-size: 14.5px; line-height: 1.5; color: var(--ink-2); }
+.drawer-block h3.g-h3 { margin-top: 14px; }
+.g-markers td { vertical-align: top; }
+.g-markers th:nth-child(1) { width: 30%; }
+.g-clinvar .table-wrap { margin-top: 12px; }
+.g-clinvar td { vertical-align: top; }
+table.data td small.g-note { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; line-height: 1.45; }
+
 /* ---------- графики ---------- */
 
 .chart-card { margin: 18px 0 0; }
@@ -686,6 +724,7 @@ table.data th small, table.data td small { display: block; font-size: 11px; font
   .case-row-meta .prio { padding: 3px 7px; }
   .rec-row { grid-template-columns: 40px minmax(0, 1fr); }
   .search-inline input { width: 140px; }
+  .g-drug { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

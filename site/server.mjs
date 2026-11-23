@@ -28,6 +28,16 @@ const FILES = {
 };
 const METRIC_FILES = ['labs.csv', 'vitals.csv'].map((f) => path.join(ROOT, 'metrics', f));
 const EPISODE_COLUMNS = ['date', 'case', 'duration', 'severity', 'before', 'helped', 'note'];
+// Геном: знания о маркерах — общие, лежат в приложении; генотипы и оценки — в карте.
+const GENOME = {
+  panel: path.join(APP_ROOT, 'genome', 'panel.csv'),
+  groups: path.join(APP_ROOT, 'genome', 'groups.yaml'),
+  results: path.join(ROOT, 'genome', 'panel-results.csv'),
+  notes: path.join(ROOT, 'genome', 'notes.yaml'),
+  summary: path.join(ROOT, 'genome', 'summary.json'),
+  findings: path.join(ROOT, 'genome', 'clinvar-findings.tsv'),
+  coverage: path.join(ROOT, 'genome', 'clinvar-coverage.json'),
+};
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.PORT) || 3737;
@@ -512,6 +522,122 @@ async function getSettings() {
   return { assistant: str(raw?.assistant).trim().slice(0, 40), labs };
 }
 
+// ---------- геном ----------
+
+async function readYamlFile(file, fallback) {
+  try {
+    return YAML.parse(await fsp.readFile(file, 'utf8')) ?? fallback;
+  } catch {
+    return fallback; // файла может не быть
+  }
+}
+
+async function readJsonFile(file, fallback) {
+  try {
+    return JSON.parse(await fsp.readFile(file, 'utf8'));
+  } catch {
+    return fallback;
+  }
+}
+
+const EVIDENCE_RANK = { высокая: 0, средняя: 1, низкая: 2 };
+
+/** Патогенные совпадения с ClinVar и оценка их правдоподобия из notes.yaml. */
+async function getGenomeFindings(notes) {
+  let text;
+  try {
+    text = await fsp.readFile(GENOME.findings, 'utf8');
+  } catch {
+    return [];
+  }
+  const [head, ...lines] = text.split(/\r?\n/).filter(Boolean);
+  const cols = head.split('\t');
+  const verdicts = new Map((Array.isArray(notes.findings) ? notes.findings : []).filter((f) => f?.marker).map((f) => [str(f.marker), f]));
+  return lines
+    .map((line) => Object.fromEntries(line.split('\t').map((v, i) => [cols[i], v])))
+    .filter((r) => /pathogenic/i.test(r.significance ?? '') && !/conflicting/i.test(r.significance))
+    .map((r) => ({
+      marker: str(r.marker),
+      gene: str(r.gene),
+      genotype: str(r.genotype),
+      type: str(r.type),
+      significance: str(r.significance),
+      condition: str(r.condition),
+      verdict: str(verdicts.get(r.marker)?.verdict).trim(),
+      note: str(verdicts.get(r.marker)?.note).trim(),
+    }));
+}
+
+/** Геном: гены и темы из общих знаний + генотипы и оценки владельца. */
+async function getGenome() {
+  const [panel, results, groupList, notesRaw, summary, coverage] = await Promise.all([
+    readCsv(GENOME.panel),
+    readCsv(GENOME.results),
+    readYamlFile(GENOME.groups, []),
+    readYamlFile(GENOME.notes, {}),
+    readJsonFile(GENOME.summary, null),
+    readJsonFile(GENOME.coverage, null),
+  ]);
+  const notes = notesRaw && typeof notesRaw === 'object' && !Array.isArray(notesRaw) ? notesRaw : {};
+  const got = new Map(results.map((r) => [r.rsid, r]));
+  const noteOf = new Map((Array.isArray(notes.groups) ? notes.groups : []).filter((n) => n?.group).map((n) => [str(n.group), n]));
+  const groups = [];
+  for (const g of Array.isArray(groupList) ? groupList : []) {
+    const key = str(g?.group);
+    const markers = panel
+      .filter((m) => key && m.group === key)
+      .map((m) => ({
+        gene: m.gene,
+        rsid: m.rsid,
+        variant: m.variant,
+        effect_allele: m.effect_allele,
+        effect: m.effect,
+        evidence: m.evidence,
+        source: m.source,
+        updated: m.updated,
+        genotype: got.get(m.rsid)?.genotype ?? '',
+        copies: got.get(m.rsid)?.effect_copies ?? '',
+      }));
+    if (!markers.length) continue;
+    const n = noteOf.get(key);
+    const genes = [...new Set(markers.map((m) => m.gene))];
+    groups.push({
+      group: key,
+      section: str(g.section) || 'Прочее',
+      title: str(g.title) || key,
+      about: str(g.about).trim(),
+      drugs: str(g.drugs).trim(),
+      sensitive: g.sensitive === true,
+      // Группа настолько надёжна, насколько надёжен её лучший маркер.
+      evidence: markers.map((m) => m.evidence).sort((a, b) => (EVIDENCE_RANK[a] ?? 9) - (EVIDENCE_RANK[b] ?? 9))[0] ?? '',
+      updated: markers.map((m) => m.updated).sort().at(-1) ?? '',
+      markers,
+      coverage: genes.filter((x) => coverage?.genes?.[x]).map((x) => ({ gene: x, known: coverage.genes[x].plp, onChip: coverage.genes[x].onChip })),
+      note: n
+        ? {
+            result: str(n.result).trim(),
+            status: STATUSES.has(n.status) ? n.status : '',
+            assessment: str(n.assessment).trim(),
+            advice: str(n.advice).trim(),
+            metrics: list(n.metrics),
+            cases: list(n.cases),
+            as_of: dateStr(n.as_of),
+          }
+        : null,
+    });
+  }
+  return {
+    available: results.length > 0, // генотипы есть — значит, геном разобран
+    summary: summary
+      ? { exported: str(summary.exported), markers: Number(summary.markers) || 0, called: Number(summary.called) || 0, clinvar: summary.clinvar ?? null }
+      : null,
+    text: str(notes.summary).trim(),
+    record: str(notes.record),
+    groups,
+    findings: results.length ? await getGenomeFindings(notes) : [],
+  };
+}
+
 // ---------- профиль, показатели, входящие ----------
 
 async function getProfile() {
@@ -547,7 +673,7 @@ async function listInbox() {
 
 /** Всё, что нужно сайту для любой страницы, одним запросом. */
 async function getState() {
-  const [records, cases, plan, inbox, profile, metrics, episodes, pinned, descriptions, settings] = await Promise.all([
+  const [records, cases, plan, inbox, profile, metrics, episodes, pinned, descriptions, settings, genome] = await Promise.all([
     listRecords(),
     listCases(),
     getPlan(),
@@ -558,9 +684,10 @@ async function getState() {
     getPinned(),
     getDescriptions(),
     getSettings(),
+    getGenome(),
   ]);
   return {
-    today: localStamp().date, records, cases, plan, inbox, profile: profile.meta, metrics, episodes, pinned, descriptions, settings,
+    today: localStamp().date, records, cases, plan, inbox, profile: profile.meta, metrics, episodes, pinned, descriptions, settings, genome,
   };
 }
 

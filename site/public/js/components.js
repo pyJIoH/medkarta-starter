@@ -37,6 +37,7 @@ export const empty = (title, text = '') =>
 export const metricLink = (name) => `#/metrics?m=${enc(name)}`;
 export const recordLink = (id) => `#/r/${enc(id)}`;
 export const caseLink = (id) => `#/case/${enc(id)}`;
+export const genomeLink = (group) => `#/genome?g=${enc(group)}`;
 
 /** Изменение к прошлому замеру: «−17 к 17 окт 2025». Без оценки «хорошо/плохо» — она зависит от показателя. */
 export function deltaText(test) {

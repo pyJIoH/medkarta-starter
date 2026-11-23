@@ -89,7 +89,7 @@ const H = 240;
 
 /**
  * series: [{ name, short, color, points: [{ t, v, flag, row }] }]
- * band:   { low, high } — зона нормы из бланка (любая граница может отсутствовать)
+ * band:   { low, high, label } — зона нормы из бланка (любая граница может отсутствовать); label — «10 – 50», «до 100»
  * target: { value, label } — цель: пунктир с подписью (пунктир здесь уместен — это порог, а не сетка)
  */
 export function lineChart(root, { series, band = null, target = null, unit = '', title = '' }) {
@@ -132,7 +132,7 @@ export function lineChart(root, { series, band = null, target = null, unit = '',
     for (const edge of [bandLow, bandHigh]) {
       if (edge != null) svg += `<line class="band-edge" x1="${m.l}" x2="${m.l + pw}" y1="${y(edge)}" y2="${y(edge)}"/>`;
     }
-    if (bottom - top >= 18) svg += `<text class="band-label" x="${m.l + 7}" y="${top + 13}">норма</text>`;
+    if (bottom - top >= 18) svg += `<text class="band-label" x="${m.l + 7}" y="${top + 13}">норма${band.label ? ` ${esc(band.label)}` : ''}</text>`;
   }
 
   // Сетка и подписи оси Y.

@@ -209,3 +209,38 @@ export function markSeen(id) {
     // приватный режим — не страшно
   }
 }
+
+// ---------- геном ----------
+
+/** Гены и темы генома; пусто, если геном в карту не добавлен. */
+export const genomeGroups = () => (store.data?.genome?.available ? store.data.genome.groups : []);
+
+/** Гены, которые ассистент связал с показателем или кейсом (поля metrics и cases в genome/notes.yaml). */
+export const genomeForTest = (name) => genomeGroups().filter((g) => g.note?.metrics.includes(name));
+export const genomeForCase = (id) => genomeGroups().filter((g) => g.note?.cases.includes(id));
+
+// Знания о геноме обновляются. Запоминаем, когда страницу «Геном» открывали в последний раз,
+// чтобы отметить то, что изменилось с тех пор.
+const GENOME_SEEN_KEY = 'medkarta.genome.seen';
+
+export function genomeSeen() {
+  try {
+    return localStorage.getItem(GENOME_SEEN_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function markGenomeSeen() {
+  try {
+    localStorage.setItem(GENOME_SEEN_KEY, store.data.today);
+  } catch {
+    // приватный режим — не страшно
+  }
+}
+
+/** Сколько генов обновилось с прошлого визита на страницу. На первом визите — ноль: всё считаем прочитанным. */
+export function genomeNewCount() {
+  const seen = genomeSeen();
+  return seen ? genomeGroups().filter((g) => g.updated > seen).length : 0;
+}

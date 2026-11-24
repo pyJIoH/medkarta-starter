@@ -347,6 +347,123 @@ let planCount = 0;
   }
 }
 
+// ---------- геном ----------
+// Знания (маркеры и группы) лежат в папке приложения, данные владельца — в genome/ карты.
+
+let genomeNote = '';
+{
+  const know = path.join(APP_ROOT, 'genome');
+  const data = path.join(ROOT, 'genome');
+  const panelFile = path.join(know, 'panel.csv');
+  const groupsFile = path.join(know, 'groups.yaml');
+  const EVIDENCE = new Set(['высокая', 'средняя', 'низкая']);
+  if (exists(panelFile)) {
+    const panel = parseCsv(panelFile, 'section,group,gene,rsid,variant,effect_allele,effect,evidence,source,updated');
+    const ids = new Set();
+    const sectionOf = new Map(); // группа → раздел
+    const updatedOf = new Map(); // группа → самая свежая дата её маркеров
+    for (const [i, r] of panel.entries()) {
+      const at = `${rel(panelFile)}, строка ${i + 2}`;
+      if (!r.rsid) err(at, 'нет rsid');
+      else if (ids.has(r.rsid)) err(at, `маркер ${r.rsid} повторяется`);
+      ids.add(r.rsid);
+      if (!r.group || !r.section || !r.gene) err(at, 'нужны section, group и gene');
+      if (!r.effect) err(at, 'нет effect — что делает вариант');
+      if (!EVIDENCE.has(r.evidence)) err(at, `evidence «${r.evidence}» — допустимы: высокая, средняя, низкая`);
+      if (r.effect_allele && !/^[ACGTDI]$/.test(r.effect_allele)) err(at, 'effect_allele — одна буква по «плюс»-цепи: A, C, G, T, а для делеций и вставок D или I');
+      if (!FULL_DATE.test(r.updated)) err(at, `updated должна быть YYYY-MM-DD, сейчас «${r.updated}»`);
+      if (sectionOf.has(r.group) && sectionOf.get(r.group) !== r.section) err(at, `группа «${r.group}» оказалась в двух разделах`);
+      sectionOf.set(r.group, r.section);
+      if ((updatedOf.get(r.group) ?? '') < r.updated) updatedOf.set(r.group, r.updated);
+    }
+
+    const groups = new Map();
+    const groupsText = read(groupsFile);
+    if (groupsText == null) err(rel(groupsFile), 'файл не найден — он нужен вместе с panel.csv');
+    else {
+      let items = [];
+      try {
+        items = YAML.parse(groupsText) ?? [];
+        if (!Array.isArray(items)) throw new Error('должен быть список');
+      } catch (e) {
+        err(rel(groupsFile), `не читается как YAML — ${String(e.message).split('\n')[0]}`);
+        items = [];
+      }
+      for (const g of items) {
+        const key = str(g?.group);
+        const where = `${rel(groupsFile)} → ${key || '(без group)'}`;
+        if (!key) {
+          err(where, 'нет group');
+          continue;
+        }
+        if (groups.has(key)) err(where, 'группа описана дважды');
+        groups.set(key, g);
+        if (!str(g.title)) err(where, 'нет title');
+        if (!str(g.about)) warn(where, 'нет about');
+        if (sectionOf.has(key) && str(g.section) !== sectionOf.get(key)) err(where, `section «${str(g.section)}», а в panel.csv — «${sectionOf.get(key)}»`);
+        if (!sectionOf.has(key)) warn(where, 'группа описана, но маркеров у неё нет');
+      }
+      for (const key of sectionOf.keys()) if (!groups.has(key)) err(rel(groupsFile), `нет описания группы «${key}» из panel.csv`);
+    }
+
+    const rawDir = path.join(data, 'raw');
+    const hasRaw = exists(rawDir) && fs.readdirSync(rawDir).some((f) => f.endsWith('.txt'));
+    const resultsFile = path.join(data, 'panel-results.csv');
+    const hasResults = exists(resultsFile);
+    if (hasResults) {
+      const got = new Set(parseCsv(resultsFile).map((r) => r.rsid));
+      const missing = [...ids].filter((id) => !got.has(id));
+      if (missing.length) warn('genome/panel-results.csv', `нет ${missing.length} маркеров из списка (${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '…' : ''}) — запусти «npm run genome -- panel»`);
+    } else if (hasRaw) warn('genome', 'есть сырой файл, но нет результатов — запусти «npm run genome -- panel»');
+
+    let noted = 0;
+    const notesText = read(path.join(data, 'notes.yaml'));
+    if (notesText != null) {
+      let notes = {};
+      try {
+        notes = YAML.parse(notesText) ?? {};
+        if (typeof notes !== 'object' || Array.isArray(notes)) throw new Error('ожидаются поля summary, record, groups, findings');
+      } catch (e) {
+        err('genome/notes.yaml', `не читается как YAML — ${String(e.message).split('\n')[0]}`);
+        notes = {};
+      }
+      if (notes.record && !records.has(str(notes.record))) err('genome/notes.yaml', `record → «${notes.record}» — такой записи нет`);
+      const seen = new Set();
+      for (const n of Array.isArray(notes.groups) ? notes.groups : []) {
+        const key = str(n?.group);
+        const where = `genome/notes.yaml → ${key || '(без group)'}`;
+        if (!key) {
+          err(where, 'нет group');
+          continue;
+        }
+        if (seen.has(key)) err(where, 'оценка повторяется');
+        seen.add(key);
+        if (!sectionOf.has(key)) {
+          err(where, 'такой группы нет в списке маркеров');
+          continue;
+        }
+        noted++;
+        if (!str(n.result)) warn(where, 'нет result — короткого итога для таблицы');
+        if (!str(n.assessment)) warn(where, 'нет assessment — оценки');
+        if (n.status != null && !STATUSES.has(n.status)) err(where, 'status должен быть ok, watch или action');
+        if (!FULL_DATE.test(str(n.as_of))) warn(where, 'нет as_of — даты, по каким знаниям написана оценка');
+        else if (str(n.as_of) < updatedOf.get(key)) warn(where, `знания обновились ${updatedOf.get(key)}, а оценка написана ${str(n.as_of)} — её нужно пересмотреть`);
+        for (const t of list(n.metrics)) if (!tests.has(t)) warn(where, `metrics → «${t}» — такого показателя нет в CSV`);
+        for (const c of list(n.cases)) if (!cases.has(c)) err(where, `cases → кейса «${c}» нет`);
+      }
+      for (const f of Array.isArray(notes.findings) ? notes.findings : []) {
+        if (!str(f?.marker)) err('genome/notes.yaml → findings', 'у находки нет marker');
+        if (!str(f?.verdict)) warn(`genome/notes.yaml → findings → ${str(f?.marker)}`, 'нет verdict — оценки правдоподобия');
+      }
+      if (hasResults) {
+        const bare = [...sectionOf.keys()].filter((key) => !seen.has(key) && groups.get(key)?.sensitive !== true);
+        if (bare.length) warn('genome/notes.yaml', `нет оценки для ${bare.length} групп: ${bare.slice(0, 5).join(', ')}${bare.length > 5 ? '…' : ''}`);
+      }
+    } else if (hasResults) warn('genome/notes.yaml', 'результаты по геному есть, а оценок нет — см. docs/GENOME.md');
+    if (hasResults) genomeNote = `геном: ${ids.size} маркеров в ${sectionOf.size} группах, с оценкой — ${noted}`;
+  }
+}
+
 // ---------- профиль ----------
 
 let profileNote = '';
@@ -390,6 +507,7 @@ let profileNote = '';
 console.log('Проверка медкарты');
 if (ROOT !== APP_ROOT) console.log(`  данные: ${ROOT}`);
 console.log(`  записей ${records.size} · кейсов ${cases.size} · показателей ${tests.size} (${metricRows} значений) · пунктов плана ${planCount}`);
+if (genomeNote) console.log(`  ${genomeNote}`);
 if (profileNote) console.log(`  ${profileNote}`);
 if (errors.length) {
   console.log(`\nОшибки — ${errors.length}:`);

@@ -2,12 +2,13 @@
 // Страницы лежат в js/views/, данные и модель — в js/store.js. Внешних запросов нет.
 
 import { $, $$, esc, icon, statusIcon, fmtDate, count, TYPES } from './js/util.js';
-import { store, refresh, post, sortedCases, isNew, who } from './js/store.js';
-import { toast, empty, metricLink, recordLink, caseLink } from './js/components.js';
+import { store, refresh, post, sortedCases, isNew, who, genomeGroups, genomeNewCount } from './js/store.js';
+import { toast, empty, metricLink, recordLink, caseLink, genomeLink } from './js/components.js';
 import { hideTip } from './js/charts.js';
 import * as home from './js/views/home.js';
 import * as cases from './js/views/cases.js';
 import * as metrics from './js/views/metrics.js';
+import * as genome from './js/views/genome.js';
 import * as records from './js/views/records.js';
 import * as misc from './js/views/misc.js';
 
@@ -18,6 +19,7 @@ const ROUTES = [
   { re: /^\/cases$/, nav: 'cases', title: 'Кейсы', render: cases.renderList },
   { re: /^\/case\/(.+)$/, nav: 'cases', title: 'Кейс', render: cases.renderCase },
   { re: /^\/metrics$/, nav: 'metrics', title: 'Показатели', render: metrics.render, update: metrics.update, leave: metrics.leave },
+  { re: /^\/genome$/, nav: 'genome', title: 'Геном', render: genome.render, update: genome.update, leave: genome.leave },
   { re: /^\/records$/, nav: 'records', title: 'Записи', render: records.renderRecords },
   { re: /^\/r\/(.+)$/, nav: 'records', title: 'Запись', render: records.renderRecord },
   { re: /^\/plan$/, nav: 'plan', title: 'План', render: misc.renderPlan },
@@ -34,6 +36,8 @@ function renderNav(active) {
     ['home', '#/', 'home', 'Обзор'],
     ['cases', '#/cases', 'cases', 'Кейсы', d ? sortedCases('open').length : 0, ''],
     ['metrics', '#/metrics', 'pulse', 'Показатели'],
+    // «Геном» появляется в меню, когда геном разобран; число — сколько генов обновилось с прошлого визита.
+    d?.genome?.available ? ['genome', '#/genome', 'dna', 'Геном', genomeNewCount(), 'accent'] : false,
     ['records', '#/records', 'records', 'Записи', fresh, 'accent'],
     ['plan', '#/plan', 'calendar', 'План'],
     null,
@@ -41,6 +45,7 @@ function renderNav(active) {
     ['inbox', '#/inbox', 'inbox', 'Входящие', d ? d.inbox.length : 0, 'accent'],
   ];
   $('#nav').innerHTML = items
+    .filter((item) => item !== false)
     .map((item) => {
       if (!item) return '<div class="nav-sep"></div>';
       const [key, href, ic, label, n, tone] = item;
@@ -182,7 +187,18 @@ function searchAll(q) {
       title: r.title,
       sub: `${TYPES[r.type]?.one ?? r.type} · ${fmtDate(r.date, 'short')}`,
     }));
-  return [...tests, ...caseHits, ...recordHits];
+  // Гены: у чувствительных тем в подсказке только название — результат виден после перехода.
+  const geneHits = genomeGroups()
+    .filter((g) => has(g.title, g.group, g.drugs, ...g.markers.flatMap((m) => [m.gene, m.rsid])))
+    .slice(0, 5)
+    .map((g) => ({
+      group: 'Геном',
+      href: genomeLink(g.group),
+      icon: icon('dna', 16),
+      title: g.title,
+      sub: g.sensitive ? g.section : (g.note?.result ?? g.section),
+    }));
+  return [...tests, ...caseHits, ...geneHits, ...recordHits];
 }
 
 function renderSearch() {
@@ -368,5 +384,6 @@ for (const node of $$('[data-icon]')) {
 $('#theme-label').textContent = THEME_LABELS[currentTheme()];
 cases.init({ rerender: () => route({ full: true }) });
 metrics.init();
+genome.init();
 renderNav('');
 route();

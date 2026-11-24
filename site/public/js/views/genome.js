@@ -102,7 +102,8 @@ function summaryCard() {
   const s = g.summary;
   const cv = s?.clinvar;
   const facts = [
-    s?.markers ? `<span><b>${s.markers.toLocaleString('ru')}</b> маркеров на чипе, определено ${((100 * s.called) / s.markers).toFixed(1)} %</span>` : '',
+    s?.markers ? `<span><b>${s.markers.toLocaleString('ru')}</b> маркеров${s.tests?.length > 1 ? ` в ${s.tests.length} тестах (${esc(s.tests.join(', '))})` : ' на чипе'}, определено ${((100 * s.called) / s.markers).toFixed(1)} %</span>` : '',
+    s?.agreement?.compared ? `<span>тесты совпали на <b>${((100 * s.agreement.same) / s.agreement.compared).toFixed(2)} %</b> общих маркеров</span>` : '',
     cv?.plp ? `<span>чип видит <b>${((100 * cv.called) / cv.plp).toFixed(1)} %</b> известных патогенных вариантов</span>` : '',
     cv?.date ? `<span>ClinVar от ${esc(fmtDate(cv.date, 'short'))}</span>` : '',
     g.record ? `<a href="${recordLink(g.record)}">Полный отчёт</a>` : '',
@@ -291,7 +292,7 @@ function renderDrawer(g) {
             .map(
               (m) => `<tr>
                 <td><b>${esc(m.gene)}</b> ${esc(m.variant)}<small>${esc(m.rsid)}${m.effect_allele ? ` · аллель ${esc(m.effect_allele)}` : ''}</small></td>
-                <td class="nowrap">${esc(genotypeText(m.genotype))}</td>
+                <td class="nowrap">${esc(genotypeText(m.genotype))}${m.sources ? `<small>${esc(m.sources)}</small>` : ''}</td>
                 <td class="nowrap">${esc(copiesText(m))}</td>
                 <td>${esc(m.effect)}<small>${esc(m.source)}${m.evidence !== g.evidence ? ` · данные: ${esc(m.evidence)}` : ''}</small></td>
               </tr>`,

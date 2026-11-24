@@ -407,7 +407,7 @@ let genomeNote = '';
     }
 
     const rawDir = path.join(data, 'raw');
-    const hasRaw = exists(rawDir) && fs.readdirSync(rawDir).some((f) => f.endsWith('.txt'));
+    const hasRaw = exists(rawDir) && fs.readdirSync(rawDir).some((f) => /\.(txt|csv)$/i.test(f));
     const resultsFile = path.join(data, 'panel-results.csv');
     const hasResults = exists(resultsFile);
     if (hasResults) {

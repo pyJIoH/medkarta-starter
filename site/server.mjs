@@ -597,6 +597,7 @@ async function getGenome() {
         updated: m.updated,
         genotype: got.get(m.rsid)?.genotype ?? '',
         copies: got.get(m.rsid)?.effect_copies ?? '',
+        sources: got.get(m.rsid)?.sources ?? '', // какие тесты определили маркер
       }));
     if (!markers.length) continue;
     const n = noteOf.get(key);
@@ -629,7 +630,14 @@ async function getGenome() {
   return {
     available: results.length > 0, // генотипы есть — значит, геном разобран
     summary: summary
-      ? { exported: str(summary.exported), markers: Number(summary.markers) || 0, called: Number(summary.called) || 0, clinvar: summary.clinvar ?? null }
+      ? {
+          exported: str(summary.exported),
+          markers: Number(summary.markers) || 0,
+          called: Number(summary.called) || 0,
+          clinvar: summary.clinvar ?? null,
+          tests: Array.isArray(summary.sources) ? summary.sources.map((x) => str(x.format)) : [],
+          agreement: summary.agreement ?? null,
+        }
       : null,
     text: str(notes.summary).trim(),
     record: str(notes.record),

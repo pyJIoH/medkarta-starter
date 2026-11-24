@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Геном: поиск маркеров в сыром файле 23andMe и сверка с открытой базой ClinVar.
+// Геном: поиск маркеров в сырых файлах ДНК-тестов и сверка с открытой базой ClinVar.
 // Всё считается на этом компьютере — ни генотипы, ни список проверяемых маркеров никуда не отправляются.
 //
 //   npm run genome -- stats                        сводка по файлу генома
@@ -9,7 +9,8 @@
 //   npm run genome -- tables [раздел…]             таблицы для отчёта (markdown)
 //
 // Общие знания (в папке приложения):   genome/panel.csv — маркеры, genome/groups.yaml — гены и темы.
-// Данные человека (в папке карты):     genome/raw/*.txt — сырой файл 23andMe (сборка 37, «плюс»-цепь),
+// Данные человека (в папке карты):     genome/raw/ — сырые файлы 23andMe (.txt) и MyHeritage (.csv), сборка 37;
+//                                      несколько тестов одного человека сводятся в один набор,
 //                                      genome/ref/clinvar/clinvar.vcf.gz — ClinVar, сборка 37 (скачивается отдельно),
 //                                      genome/panel-results.csv, clinvar-findings.tsv, clinvar-coverage.json,
 //                                      summary.json — результаты, их читает сайт.
@@ -45,37 +46,130 @@ function fail(text) {
 
 // ---------- геном ----------
 
-function rawFile() {
-  const files = fs.existsSync(RAW_DIR) ? fs.readdirSync(RAW_DIR).filter((f) => f.endsWith('.txt')).sort() : [];
-  if (!files.length) fail(`В ${relData(RAW_DIR) || RAW_DIR} нет файла генома. Положите туда сырой файл 23andMe (.txt) — см. docs/GENOME.md.`);
-  return path.join(RAW_DIR, files[files.length - 1]);
+// Псевдоаутосомные участки X (сборка 37): там у мужчин, как и на обычных хромосомах, две копии.
+const PAR = [[60001, 2699520], [154931044, 155260560]];
+const inPar = (pos) => PAR.some(([from, to]) => pos >= from && pos <= to);
+const called = (m) => Boolean(m && m.gt && !m.gt.includes('-'));
+const sameGenotype = (x, y) => [...x].sort().join('') === [...y].sort().join('');
+
+function rawFiles() {
+  const files = fs.existsSync(RAW_DIR) ? fs.readdirSync(RAW_DIR).filter((f) => /\.(txt|csv)$/i.test(f) && !f.startsWith('.')).sort() : [];
+  if (!files.length) fail(`В ${relData(RAW_DIR) || RAW_DIR} нет файла генома. Положите туда сырой файл ДНК-теста (.txt или .csv) — см. docs/GENOME.md.`);
+  return files.map((f) => path.join(RAW_DIR, f));
 }
 
-/** byId: rsid → {id, chr, pos, gt}; byPos: «chr:pos» → [маркеры]. Генотип «--» — маркер не определён. */
-function loadGenome() {
-  const byId = new Map();
-  const byPos = new Map();
-  const header = [];
-  for (const raw of fs.readFileSync(rawFile(), 'utf8').split('\n')) {
+/**
+ * Один сырой файл → { file, format, exported, markers: rsid → {id, chr, pos, gt} }.
+ * Понимаем два формата: 23andMe (через табуляцию) и MyHeritage (через запятую, значения в кавычках).
+ * Оба дают сборку 37 и генотип по «плюс»-цепи; «--» — маркер не определён.
+ */
+function parseRaw(file) {
+  const text = fs.readFileSync(file, 'utf8');
+  const head = text.slice(0, 5000);
+  const isMyHeritage = /fileformat=MyHeritage/i.test(head) || /^"?RSID"?,"?CHROMOSOME"?,/im.test(head);
+  const markers = new Map();
+  for (const raw of text.split('\n')) {
     const line = raw.replace(/\r$/, '');
-    if (!line) continue;
-    if (line.startsWith('#')) {
-      header.push(line);
-      continue;
+    if (!line || line.startsWith('#')) continue;
+    const cells = isMyHeritage ? line.split(',').map((c) => c.replace(/^"|"$/g, '')) : line.split('\t');
+    const [id, chr, pos, gt] = cells;
+    if (gt === undefined || !/^\d+$/.test(pos)) continue; // строка заголовка или мусор
+    markers.set(id, { id, chr, pos: Number(pos), gt });
+  }
+  return {
+    file: path.basename(file),
+    format: isMyHeritage ? 'MyHeritage' : '23andMe',
+    exported: head.match(/timestamp[=:]\s*(\d{4}-\d{2}-\d{2})/i)?.[1] ?? '',
+    markers,
+  };
+}
+
+/** Пол по одному файлу: у мужчины X читается одной буквой или почти без гетерозигот. */
+function sexOf(source) {
+  let haploid = 0;
+  let diploid = 0;
+  let het = 0;
+  for (const m of source.markers.values()) {
+    if (m.chr !== 'X' || !called(m) || inPar(m.pos)) continue;
+    if (m.gt.length === 1) haploid += 1;
+    else {
+      diploid += 1;
+      if (m.gt[0] !== m.gt[1]) het += 1;
     }
-    const [id, chr, pos, gt] = line.split('\t');
-    if (!gt) continue;
-    const m = { id, chr, pos: Number(pos), gt };
-    byId.set(id, m);
-    const key = `${chr}:${pos}`;
+  }
+  if (haploid + diploid < 500) return '';
+  if (haploid > diploid) return 'мужской';
+  return het / diploid < 0.03 ? 'мужской' : 'женский';
+}
+
+/**
+ * Все файлы из genome/raw — тесты одного человека — сводятся в один набор.
+ * byId: rsid → {id, chr, pos, gt, sources}; byPos: «chr:pos» → [маркеры].
+ * Маркер, который два теста прочитали по-разному, считаем не определённым: так честнее, чем выбирать.
+ */
+function loadGenome() {
+  const sources = rawFiles().map(parseRaw);
+  for (const src of sources) {
+    if (!src.markers.size) fail(`Файл ${src.file} не похож на сырые данные 23andMe или MyHeritage: нужны строки «маркер, хромосома, позиция, генотип».`);
+    src.sex = sexOf(src);
+    src.called = [...src.markers.values()].filter(called).length;
+  }
+  const sexes = [...new Set(sources.map((src) => src.sex).filter(Boolean))];
+  if (sexes.length > 1) fail(`Файлы в ${relData(RAW_DIR)} — от людей разного пола: ${sources.map((src) => `${src.file} — ${src.sex}`).join('; ')}. В одной карте — тесты одного человека.`);
+  const sex = sexes[0] ?? '';
+
+  const byId = new Map();
+  const agreement = { compared: 0, same: 0, conflicts: 0, filled: 0 };
+  let impossible = 0;
+  for (const src of sources) {
+    for (const raw of src.markers.values()) {
+      const m = { ...raw, sources: called(raw) ? [src.format] : [], seen: 1 };
+      // У мужчины X (вне псевдоаутосомных участков), Y и митохондриальная ДНК — в одном экземпляре.
+      // Тесты, которые пишут там две буквы, приводим к одной; «гетерозигота» в таком месте — ошибка чтения.
+      if (sex === 'мужской' && called(m) && m.gt.length === 2 && ((m.chr === 'X' && !inPar(m.pos)) || m.chr === 'Y' || m.chr === 'MT')) {
+        if (m.gt[0] === m.gt[1]) m.gt = m.gt[0];
+        else {
+          m.gt = '--';
+          m.sources = [];
+          impossible += 1;
+        }
+      }
+      const prev = byId.get(m.id);
+      if (!prev) {
+        byId.set(m.id, m);
+        continue;
+      }
+      if (prev.chr !== m.chr) continue;
+      prev.seen += 1;
+      if (!called(m)) continue;
+      if (!called(prev)) {
+        if (prev.conflict) continue;
+        prev.gt = m.gt;
+        prev.sources = m.sources;
+        continue;
+      }
+      agreement.compared += 1;
+      if (sameGenotype(prev.gt, m.gt)) {
+        agreement.same += 1;
+        prev.sources.push(...m.sources);
+      } else {
+        agreement.conflicts += 1;
+        prev.gt = '--';
+        prev.sources = [];
+        prev.conflict = true;
+      }
+    }
+  }
+  const byPos = new Map();
+  for (const m of byId.values()) {
+    // Маркер есть в нескольких тестах, а определил его только один — тесты дополнили друг друга.
+    if (m.seen > 1 && m.sources.length === 1) agreement.filled += 1;
+    const key = `${m.chr}:${m.pos}`;
     if (byPos.has(key)) byPos.get(key).push(m);
     else byPos.set(key, [m]);
   }
-  if (!byId.size) fail('Файл генома не похож на сырые данные 23andMe: нужны строки «rsid, хромосома, позиция, генотип» через табуляцию.');
-  return { byId, byPos, header };
+  return { byId, byPos, sources, sex, agreement, impossible };
 }
-
-const called = (m) => Boolean(m && m.gt && !m.gt.includes('-'));
 
 // ---------- CSV и сводка ----------
 
@@ -117,26 +211,17 @@ function saveSummary(patch) {
 }
 
 function fileSummary(genome) {
-  let nocall = 0;
-  let xHaploid = 0;
-  let xDiploid = 0;
-  let yCalled = 0;
-  for (const m of genome.byId.values()) {
-    if (!called(m)) {
-      nocall += 1;
-      continue;
-    }
-    if (m.chr === 'X') m.gt.length === 1 ? (xHaploid += 1) : (xDiploid += 1);
-    if (m.chr === 'Y') yCalled += 1;
-  }
-  const stamp = genome.header.find((l) => l.includes('timestamp'))?.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? '';
+  const calledCount = [...genome.byId.values()].filter(called).length;
   return {
-    file: path.basename(rawFile()),
-    exported: stamp,
+    file: genome.sources.map((src) => src.file).join(', '),
+    exported: genome.sources.map((src) => src.exported).filter(Boolean).sort().at(-1) ?? '',
     markers: genome.byId.size,
-    called: genome.byId.size - nocall,
-    // Одна X-хромосома читается одной буквой; у женщин на X — пары букв, а Y не определяется.
-    sex: xHaploid > xDiploid && yCalled > 100 ? 'мужской' : xDiploid > xHaploid ? 'женский' : '',
+    called: calledCount,
+    sex: genome.sex,
+    sources: genome.sources.map((src) => ({ file: src.file, format: src.format, exported: src.exported, markers: src.markers.size, called: src.called })),
+    // Сколько общих маркеров тесты прочитали одинаково — проверка, что это один человек и файлы читаются верно.
+    agreement: genome.sources.length > 1 ? genome.agreement : null,
+    impossible: genome.impossible,
   };
 }
 
@@ -276,8 +361,14 @@ function stats() {
   const genome = loadGenome();
   const s = fileSummary(genome);
   saveSummary(s);
-  console.log(s.file);
-  console.log(`  выгружен ${s.exported || '—'} · маркеров ${s.markers}, определено ${s.called} (${((100 * s.called) / s.markers).toFixed(2)} %) · пол по данным: ${s.sex || 'не определён'}`);
+  for (const src of s.sources) console.log(`${src.file} — ${src.format}, выгружен ${src.exported || '—'}: маркеров ${src.markers}, определено ${src.called}`);
+  if (s.agreement) {
+    const a = s.agreement;
+    console.log(`Сверка тестов: общих маркеров ${a.compared}, прочитаны одинаково ${a.same} (${((100 * a.same) / a.compared).toFixed(3)} %), расходятся ${a.conflicts} — их считаем не определёнными; ещё ${a.filled} определил только один из тестов`);
+    if (a.same / a.compared < 0.99) console.log('  ! Совпадение ниже 99 % — проверьте, что оба файла от одного человека.');
+  }
+  if (s.impossible) console.log(`Гетерозигот там, где у мужчины одна копия (X, Y): ${s.impossible} — ошибки чтения, считаем не определёнными`);
+  console.log(`Всего: маркеров ${s.markers}, определено ${s.called} (${((100 * s.called) / s.markers).toFixed(2)} %) · пол по данным: ${s.sex || 'не определён'}`);
 }
 
 function lookup(args) {
@@ -294,7 +385,7 @@ function panel() {
   const genome = loadGenome();
   const rows = readPanel();
   const clin = fs.existsSync(PANEL_REF) ? JSON.parse(fs.readFileSync(PANEL_REF, 'utf8')) : {};
-  const cols = ['rsid', 'chr', 'pos', 'genotype', 'effect_copies', 'clinvar_ref_alt'];
+  const cols = ['rsid', 'chr', 'pos', 'genotype', 'effect_copies', 'clinvar_ref_alt', 'sources'];
   const lines = [cols.join(',')];
   let onChip = 0;
   let isCalled = 0;
@@ -309,7 +400,8 @@ function panel() {
     if (cv && r.effect_allele && /^[ACGT]$/.test(r.effect_allele) && cv.ref.length === 1 && ![cv.ref, ...cv.alt].includes(r.effect_allele)) {
       mismatch.push(`${r.rsid} (${r.gene}): в списке «${r.effect_allele}», в ClinVar ${cv.ref}>${cv.alt.join('/')}`);
     }
-    lines.push([r.rsid, m?.chr ?? '', m?.pos ?? '', m ? m.gt : '', n, cv ? `${cv.ref}>${cv.alt.join('/')}` : ''].map(csvCell).join(','));
+    const from = m?.conflict ? 'тесты расходятся' : (m?.sources ?? []).join(' + ');
+    lines.push([r.rsid, m?.chr ?? '', m?.pos ?? '', m ? m.gt : '', n, cv ? `${cv.ref}>${cv.alt.join('/')}` : '', from].map(csvCell).join(','));
   }
   fs.mkdirSync(DATA, { recursive: true });
   fs.writeFileSync(RESULTS, `${lines.join('\n')}\n`);

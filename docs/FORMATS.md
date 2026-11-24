@@ -203,4 +203,4 @@ date,test,value,unit,ref_low,ref_high,flag,category,test_original,lab,record,com
 
 ## 4. Геном — `genome/`
 
-Знания о маркерах (`genome/panel.csv`, `genome/groups.yaml`) — общие и лежат в папке приложения; данные владельца — в `genome/` его карты: сырой файл в `raw/`, оценки в `notes.yaml`, результаты сверок — в файлах, которые создаёт `npm run genome`. Форматы всех этих файлов, порядок разбора и правила толкования — в [GENOME.md](GENOME.md).
+Знания о маркерах (`genome/panel.csv`, `genome/groups.yaml`) — общие и лежат в папке приложения; данные владельца — в `genome/` его карты: сырой файл в `raw/`, оценки в `notes.yaml`, результаты сверок и расчёт происхождения (`origins.json`) — в файлах, которые создаёт `npm run genome`. Форматы всех этих файлов, порядок разбора и правила толкования — в [GENOME.md](GENOME.md).

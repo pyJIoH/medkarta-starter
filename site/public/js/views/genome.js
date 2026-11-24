@@ -116,6 +116,83 @@ function summaryCard() {
     </section>`;
 }
 
+const REGION_NAMES = { EUR: 'Европа', EAS: 'Восточная Азия', SAS: 'Южная Азия', AFR: 'Африка южнее Сахары', AMR: 'Америка' };
+
+/** Одна линия предков: гаплогруппа, оценка и рассказ о ветви от общего к частному. */
+function lineBlock(title, hint, big, sub, line) {
+  return `
+    <div class="g-line">
+      <div class="eyebrow">${title}</div>
+      <div class="g-hg">${esc(big)}</div>
+      <div class="hero-sub">${sub}</div>
+      ${line.note ? `<p class="g-text g-line-note">${esc(line.note)}</p>` : ''}
+      ${
+        line.stories.length
+          ? `<ol class="g-story">${line.stories.map((s) => `<li><b>${esc(s.name)}</b><span>${esc(s.story)}</span></li>`).join('')}</ol>`
+          : ''
+      }
+      <p class="chart-note">${hint}</p>
+    </div>`;
+}
+
+/** Происхождение: отцовская и материнская линии и грубая оценка по континентам. */
+function originsCard() {
+  const o = genome().origins;
+  if (!o) return '';
+  const y = o.y;
+  const mt = o.mt;
+  const c = o.continents;
+  const pct = (v) => `${Math.round(100 * (v ?? 0))}`;
+  const regions = c ? Object.keys(REGION_NAMES).filter((r) => (c.shares[r] ?? 0) >= 0.03 || (c.high[r] ?? 0) >= 0.25) : [];
+  return `
+    <section class="card g-origins">
+      <div class="card-head">${icon('user', 18)}<h2>Происхождение</h2><span class="card-meta">две линии предков и грубая оценка по континентам</span></div>
+      <div class="g-lines">
+        ${
+          y
+            ? lineBlock(
+                'Отцовская линия · Y-хромосома',
+                `Передаётся от отца к сыну почти без изменений. Проверено маркеров: ${y.tested.toLocaleString('ru')}; на пути от корня ${y.derived} своих вариантов и ${y.conflicts} противоречий. Дерево — ${esc(y.tree)}.`,
+                y.label,
+                `${y.solid && y.solid.label !== y.label ? `надёжно до ${esc(y.solid.label)}, дальше — вероятная ветвь · ` : ''}полное имя ${esc(y.haplogroup)}`,
+                y,
+              )
+            : ''
+        }
+        ${
+          mt
+            ? lineBlock(
+                'Материнская линия · митохондриальная ДНК',
+                `Передаётся от матери всем детям. Проверено позиций: ${mt.tested.toLocaleString('ru')}; найдено ${mt.found} из ${mt.expected} мутаций, ожидаемых для этой ветви. Дерево — ${esc(mt.tree)}.`,
+                mt.haplogroup,
+                'ветвь, к которой сходятся проверенные мутации',
+                mt,
+              )
+            : ''
+        }
+      </div>
+      ${
+        c
+          ? `<div class="g-continents">
+              <div class="eyebrow">По континентам · ${c.markers} ${plural(c.markers, ['маркер', 'маркера', 'маркеров'])}</div>
+              ${regions
+                .map(
+                  (r) => `<div class="g-region">
+                    <span class="g-region-name">${REGION_NAMES[r]}</span>
+                    <span class="meter" role="img" aria-label="${REGION_NAMES[r]}: ${pct(c.shares[r])} %"><span style="width:${pct(c.shares[r])}%"></span></span>
+                    <span class="g-region-val"><b>${pct(c.shares[r])} %</b> <span class="muted">от ${pct(c.low[r])} до ${pct(c.high[r])}</span></span>
+                  </div>`,
+                )
+                .join('')}
+              ${c.note ? `<p class="g-text g-line-note">${esc(c.note)}</p>` : ''}
+              <p class="chart-note">Оценка грубая: ${c.markers} маркеров различают только континенты, а диапазон показывает, насколько результат меняется от набора маркеров. У сервиса, где вы сдавали тест, оценка точнее — он использует сотни тысяч маркеров.</p>
+            </div>`
+          : ''
+      }
+      <p class="card-note">Гаплогруппа — это одна линия из тысяч ваших предков: отец отца отца… или мать матери матери… Она рассказывает о путях этой линии за тысячи лет, но не о том, «кто вы по происхождению».</p>
+    </section>`;
+}
+
 /** Памятка по лекарствам: только гены с особенностями — то, что стоит показать врачу. */
 function drugCard() {
   const drugs = genome().groups.filter((g) => g.section === DRUGS);
@@ -383,6 +460,7 @@ export function render(ctx) {
     </header>
     ${summaryCard()}
     ${drugCard()}
+    ${originsCard()}
     <div id="g-page">
     <div class="toolbar">
       <div class="seg" id="g-filter"></div>

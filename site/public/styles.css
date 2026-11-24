@@ -578,11 +578,25 @@ table.data th small, table.data td small { display: block; font-size: 11px; font
 
 /* ---------- геном ---------- */
 
-.g-summary, .g-drugs, .g-clinvar { margin-bottom: 16px; }
+.g-summary, .g-drugs, .g-clinvar, .g-origins { margin-bottom: 16px; }
 .g-summary .lead, .g-clinvar .lead { max-width: 900px; }
 .g-facts { display: flex; flex-wrap: wrap; gap: 4px 22px; margin-top: 10px; font-size: 13px; color: var(--ink-3); }
 .g-facts b { color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; }
-.g-drugs .card-head .icon, .g-clinvar .card-head .icon { color: var(--ink-3); }
+.g-drugs .card-head .icon, .g-clinvar .card-head .icon, .g-origins .card-head .icon { color: var(--ink-3); }
+/* Происхождение: две линии предков рядом, ниже — континенты. */
+.g-lines { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 36px; }
+.g-hg { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.2; margin-top: 2px; }
+.g-line-note { margin-top: 10px; color: var(--ink); }
+.g-story { list-style: none; margin: 12px 0 0; padding: 0 0 0 14px; border-left: 2px solid var(--grid); }
+.g-story li { position: relative; padding: 0 0 10px; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+.g-story li::before { content: ''; position: absolute; left: -19px; top: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--surface); border: 2px solid var(--axis); }
+.g-story li:last-child::before { border-color: var(--accent); }
+.g-story b { display: block; color: var(--ink); font-weight: 600; }
+.g-continents { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.g-region { display: grid; grid-template-columns: 170px minmax(0, 1fr) 190px; gap: 12px; align-items: center; padding: 5px 0; font-size: 14px; }
+.g-region .meter { display: block; }
+.g-region-val { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.g-region-val .muted { font-size: 12.5px; margin-left: 4px; }
 .g-drug { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 4px 20px; padding: 11px 0; color: var(--ink); }
 .g-drug:hover { text-decoration: none; }
 .g-drug:hover .g-drug-gene b { color: var(--accent-ink); }
@@ -732,6 +746,9 @@ table.data td small.g-note { font-size: 12.5px; color: var(--ink-2); margin-top:
   .rec-row { grid-template-columns: 40px minmax(0, 1fr); }
   .search-inline input { width: 140px; }
   .g-drug { grid-template-columns: minmax(0, 1fr); }
+  .g-lines { grid-template-columns: minmax(0, 1fr); }
+  .g-region { grid-template-columns: 110px minmax(0, 1fr); }
+  .g-region-val { grid-column: 2; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

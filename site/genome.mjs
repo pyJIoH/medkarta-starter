@@ -7,6 +7,7 @@
 //   npm run genome -- panel                        генотипы по списку маркеров → genome/panel-results.csv
 //   npm run genome -- clinvar                      сверка со всем ClinVar → genome/clinvar-findings.tsv
 //   npm run genome -- tables [раздел…]             таблицы для отчёта (markdown)
+//   npm run genome -- origins                      гаплогруппы и оценка по континентам → genome/origins.json
 //
 // Общие знания (в папке приложения):   genome/panel.csv — маркеры, genome/groups.yaml — гены и темы.
 // Данные человека (в папке карты):     genome/raw/ — сырые файлы 23andMe (.txt) и MyHeritage (.csv), сборка 37;
@@ -22,6 +23,7 @@ import zlib from 'node:zlib';
 import readline from 'node:readline';
 import YAML from 'yaml';
 import { APP_ROOT, resolveDataRoot } from './root.mjs';
+import { yHaplogroup, mtHaplogroup, continents, REGIONS } from './origins.mjs';
 
 const ROOT = resolveDataRoot();
 const KNOW = path.join(APP_ROOT, 'genome');
@@ -35,6 +37,8 @@ const FINDINGS = path.join(DATA, 'clinvar-findings.tsv');
 const COVERAGE = path.join(DATA, 'clinvar-coverage.json');
 const SUMMARY = path.join(DATA, 'summary.json');
 const PANEL_REF = path.join(DATA, 'ref', 'panel-clinvar.json');
+const ORIGINS = path.join(DATA, 'origins.json');
+const ANCESTRY_PANEL = path.join(KNOW, 'ancestry-panel.csv');
 
 const today = () => new Date().toISOString().slice(0, 10);
 const relData = (file) => path.relative(ROOT, file);
@@ -446,6 +450,25 @@ function tables(args) {
   }
 }
 
+/** Происхождение: отцовская и материнская линии, оценка по континентам. Справочники — в genome/ref (docs/GENOME.md). */
+function origins() {
+  const genome = loadGenome();
+  const out = { generated: today() };
+  const say = (title, r, ok) => console.log(r.missing ? `${title}: нет данных — ${r.missing}` : `${title}: ${ok(r)}`);
+  if (genome.sex === 'мужской') {
+    out.y = yHaplogroup(genome, path.join(DATA, 'ref', 'yhaplo'));
+    say('Отцовская линия (Y)', out.y, (r) => `${r.label} (${r.haplogroup}) — своих вариантов на пути ${r.derived}, противоречий ${r.conflicts}, проверено маркеров ${r.tested}`);
+  } else console.log('Отцовская линия (Y): у женщин Y-хромосомы нет — её показывает тест отца или брата');
+  out.mt = mtHaplogroup(genome, path.join(DATA, 'ref', 'phylotree'));
+  say('Материнская линия (мтДНК)', out.mt, (r) => `${r.haplogroup} — найдено ${r.found} из ${r.expected} ожидаемых мутаций, оценка ${r.score}, проверено позиций ${r.tested}`);
+  out.continents = continents(genome, ANCESTRY_PANEL);
+  say('Континенты', out.continents, (r) => `${REGIONS.map((k) => `${k} ${(100 * r.shares[k]).toFixed(0)} %`).join(', ')} — по ${r.markers} маркерам`);
+  for (const key of ['y', 'mt', 'continents']) if (String(out[key]?.missing ?? '').startsWith('ref/')) console.log(`  Чтобы посчитать, скачайте справочник в genome/${out[key].missing} — см. docs/GENOME.md.`);
+  fs.mkdirSync(DATA, { recursive: true });
+  fs.writeFileSync(ORIGINS, `${JSON.stringify(out, null, 1)}\n`);
+  console.log(`→ ${relData(ORIGINS)}`);
+}
+
 // ---------- запуск ----------
 
 const argv = process.argv.slice(2).filter((a, i, all) => a !== '--root' && all[i - 1] !== '--root' && !a.startsWith('--root='));
@@ -455,4 +478,5 @@ else if (cmd === 'lookup') lookup(args);
 else if (cmd === 'panel') panel();
 else if (cmd === 'clinvar') await clinvar();
 else if (cmd === 'tables') tables(args);
-else console.log('Команды: stats | lookup <rsid|хромосома:позиция>… | panel | clinvar | tables [раздел…]\nПодробно — docs/GENOME.md.');
+else if (cmd === 'origins') origins();
+else console.log('Команды: stats | lookup <rsid|хромосома:позиция>… | panel | clinvar | tables [раздел…] | origins\nПодробно — docs/GENOME.md.');

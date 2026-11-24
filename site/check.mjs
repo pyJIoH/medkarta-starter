@@ -422,7 +422,7 @@ let genomeNote = '';
       let notes = {};
       try {
         notes = YAML.parse(notesText) ?? {};
-        if (typeof notes !== 'object' || Array.isArray(notes)) throw new Error('ожидаются поля summary, record, groups, findings');
+        if (typeof notes !== 'object' || Array.isArray(notes)) throw new Error('ожидаются поля summary, record, groups, findings, origins');
       } catch (e) {
         err('genome/notes.yaml', `не читается как YAML — ${String(e.message).split('\n')[0]}`);
         notes = {};
@@ -461,6 +461,62 @@ let genomeNote = '';
       }
     } else if (hasResults) warn('genome/notes.yaml', 'результаты по геному есть, а оценок нет — см. docs/GENOME.md');
     if (hasResults) genomeNote = `геном: ${ids.size} маркеров в ${sectionOf.size} группах, с оценкой — ${noted}`;
+  }
+}
+
+// ---------- происхождение ----------
+// Рассказы о гаплогруппах и панель маркеров — знания в папке приложения; расчёт и пояснения — в genome/ карты.
+{
+  const know = path.join(APP_ROOT, 'genome');
+  const storiesFile = path.join(know, 'haplogroups.yaml');
+  const storiesText = read(storiesFile);
+  if (storiesText != null) {
+    let stories = {};
+    try {
+      stories = YAML.parse(storiesText) ?? {};
+    } catch (e) {
+      err(rel(storiesFile), `не читается как YAML — ${String(e.message).split('\n')[0]}`);
+    }
+    for (const [line, key] of [['y', 'snps'], ['mt', 'prefix']]) {
+      for (const s of Array.isArray(stories[line]) ? stories[line] : []) {
+        const at = `${rel(storiesFile)} → ${line} → ${str(s?.name) || '(без name)'}`;
+        if (!str(s?.name)) err(at, 'нет name');
+        if (!list(s?.[key]).length) err(at, `нет ${key} — к чему привязан рассказ`);
+        if (!str(s?.story).trim()) err(at, 'нет story');
+      }
+    }
+  }
+  const panelFile = path.join(know, 'ancestry-panel.csv');
+  if (exists(panelFile)) {
+    const REGIONS = ['EUR', 'EAS', 'SAS', 'AFR', 'AMR'];
+    for (const [i, r] of parseCsv(panelFile, `rsid,chr,pos,allele,other,${REGIONS.join(',')}`).entries()) {
+      const at = `${rel(panelFile)}, строка ${i + 2}`;
+      if (!/^rs\d+$/.test(r.rsid)) err(at, 'нет rsid');
+      if (!/^[ACGT]$/.test(r.allele) || !/^[ACGT]$/.test(r.other)) err(at, 'allele и other — по одной букве A, C, G или T');
+      for (const reg of REGIONS) if (r[reg] === '' || !(Number(r[reg]) >= 0 && Number(r[reg]) <= 1)) err(at, `${reg} — частота от 0 до 1`);
+    }
+  }
+  const originsText = read(path.join(ROOT, 'genome', 'origins.json'));
+  if (originsText != null) {
+    let origins = null;
+    try {
+      origins = JSON.parse(originsText);
+    } catch {
+      err('genome/origins.json', 'не читается — запусти «npm run genome -- origins» заново');
+    }
+    let notes = {};
+    try {
+      notes = YAML.parse(read(path.join(ROOT, 'genome', 'notes.yaml')) ?? '') ?? {};
+    } catch {
+      notes = {}; // об ошибке в самом файле уже сказано выше
+    }
+    const note = notes.origins && typeof notes.origins === 'object' ? notes.origins : {};
+    for (const key of Object.keys(note)) if (!['y', 'mt', 'continents'].includes(key)) err('genome/notes.yaml → origins', `поле «${key}» — допустимы y, mt, continents`);
+    if (origins) {
+      const names = { y: 'отцовской линии', mt: 'материнской линии', continents: 'оценки по континентам' };
+      const bare = Object.keys(names).filter((k) => origins[k] && !origins[k].missing && !str(note[k]).trim());
+      if (bare.length) warn('genome/notes.yaml → origins', `нет пояснения для ${bare.map((k) => names[k]).join(', ')} — см. docs/GENOME.md`);
+    }
   }
 }
 

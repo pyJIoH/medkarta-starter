@@ -37,6 +37,8 @@ const GENOME = {
   summary: path.join(ROOT, 'genome', 'summary.json'),
   findings: path.join(ROOT, 'genome', 'clinvar-findings.tsv'),
   coverage: path.join(ROOT, 'genome', 'clinvar-coverage.json'),
+  origins: path.join(ROOT, 'genome', 'origins.json'),
+  haplogroups: path.join(APP_ROOT, 'genome', 'haplogroups.yaml'),
 };
 
 const HOST = '127.0.0.1';
@@ -568,6 +570,71 @@ async function getGenomeFindings(notes) {
     }));
 }
 
+/** Название гаплогруппы мтДНК начинается с этого префикса: «H» подходит к «H1a» и «H+195», но не к «HV» и не «H1» к «H10». */
+function mtPrefixMatches(name, prefix) {
+  if (!name.startsWith(prefix)) return false;
+  const next = name[prefix.length];
+  if (next === undefined) return true;
+  const isDigit = (c) => /\d/.test(c);
+  const isLetter = (c) => /[A-Za-z]/.test(c);
+  const last = prefix.at(-1);
+  return !((isDigit(last) && isDigit(next)) || (isLetter(last) && isLetter(next)));
+}
+
+/** Происхождение: результат расчёта из карты + общие рассказы о ветвях + оценка владельцу. */
+async function getOrigins(notes) {
+  const [data, stories] = await Promise.all([readJsonFile(GENOME.origins, null), readYamlFile(GENOME.haplogroups, {})]);
+  if (!data) return null;
+  const note = notes.origins && typeof notes.origins === 'object' ? notes.origins : {};
+  const out = { generated: str(data.generated), y: null, mt: null, continents: null };
+  if (data.y?.haplogroup) {
+    const names = new Set(list(data.y.snps));
+    out.y = {
+      label: str(data.y.label),
+      haplogroup: str(data.y.haplogroup),
+      solid: data.y.solid ? { label: str(data.y.solid.label), haplogroup: str(data.y.solid.haplogroup) } : null,
+      derived: Number(data.y.derived) || 0,
+      conflicts: Number(data.y.conflicts) || 0,
+      tested: Number(data.y.tested) || 0,
+      tree: str(data.y.tree),
+      stories: (Array.isArray(stories.y) ? stories.y : []).filter((s) => list(s.snps).some((x) => names.has(x))).map((s) => ({ name: str(s.name), story: str(s.story).trim() })),
+      note: str(note.y).trim(),
+    };
+  }
+  if (data.mt?.haplogroup) {
+    const hg = str(data.mt.haplogroup);
+    // Путь от корня дерева; узлы-развилки вида «U2'3'4» рассказов не получают.
+    const trail = (list(data.mt.path).length ? list(data.mt.path) : [hg]).filter((n) => !n.includes("'"));
+    const firstAt = (s) => trail.findIndex((n) => list(s.prefix).some((p) => mtPrefixMatches(n, p)));
+    out.mt = {
+      haplogroup: hg,
+      score: Number(data.mt.score) || 0,
+      found: Number(data.mt.found) || 0,
+      expected: Number(data.mt.expected) || 0,
+      tested: Number(data.mt.tested) || 0,
+      tree: str(data.mt.tree),
+      stories: (Array.isArray(stories.mt) ? stories.mt : [])
+        .map((s) => ({ s, at: firstAt(s) }))
+        .filter((x) => x.at >= 0)
+        .sort((a, b) => a.at - b.at)
+        .map(({ s }) => ({ name: str(s.name), story: str(s.story).trim() })),
+      note: str(note.mt).trim(),
+    };
+  }
+  if (data.continents?.shares) {
+    out.continents = {
+      shares: data.continents.shares,
+      low: data.continents.low ?? {},
+      high: data.continents.high ?? {},
+      markers: Number(data.continents.markers) || 0,
+      panel: str(data.continents.panel),
+      reference: str(data.continents.reference),
+      note: str(note.continents).trim(),
+    };
+  }
+  return out.y || out.mt || out.continents ? out : null;
+}
+
 /** Геном: гены и темы из общих знаний + генотипы и оценки владельца. */
 async function getGenome() {
   const [panel, results, groupList, notesRaw, summary, coverage] = await Promise.all([
@@ -643,6 +710,7 @@ async function getGenome() {
     record: str(notes.record),
     groups,
     findings: results.length ? await getGenomeFindings(notes) : [],
+    origins: await getOrigins(notes),
   };
 }
 
